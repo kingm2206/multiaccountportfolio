@@ -324,7 +324,7 @@ document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
     <div class="top">
       <div class="ttl"><h1>Family portfolio</h1><div class="when" id="when">Loading</div></div>
       <div class="acctbox" id="acctbox"></div>
-      <button class="refresh" id="refresh" onclick="load()" aria-label="Refresh">
+      <button class="refresh" id="refresh" onclick="load(1)" aria-label="Refresh">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
       </button>
     </div>
@@ -478,15 +478,17 @@ function retPc(x,base){return base>0.5?(x<0?'−':'')+pc(x,base)+' return':''}
 
 /* ---------- data ---------- */
 var busy=false;
-function url_(cb){ return ENDPOINT+'?json=1&k='+encodeURIComponent(KEY)+(cb?'&cb='+cb:'')+'&t='+Date.now() }
+var forceNext=false;
+function url_(cb){ var f=forceNext; forceNext=false; return ENDPOINT+'?json=1&k='+encodeURIComponent(KEY)+(f?'&fresh=1':'')+(cb?'&cb='+cb:'')+'&t='+Date.now() }
 function fail(msg){
   busy=false;
   document.getElementById('refresh').classList.remove('spin');
   document.getElementById('when').textContent='Not updated';
   if(!D) document.getElementById('main').innerHTML='<div class="center">'+esc(msg)+'</div>';
 }
-function load(){
+function load(force){
   if(busy) return;
+  if(force){ forceNext=true; ipoForce=true; }
   if(!KEY){ D={error:'This app is not linked to your portfolio yet.',
     fix:'Open your personal dashboard link once in Safari. It ends with ?k= and a long code. Then add it to the Home Screen again.'}; done(); return; }
   busy=true;
@@ -947,14 +949,15 @@ function paintSheet(){
 
 
 /* ---------- IPO tab (master only) ---------- */
-var IPO=null, ipoBusy=false, ipoErr='', ipoStale=true, ipoAcct='ALL', ipoYear='', ipoSort='value', ipoOpen={};
+var ipoForce=false, ipoAt=0, IPO=null, ipoBusy=false, ipoErr='', ipoStale=true, ipoAcct='ALL', ipoYear='', ipoSort='value', ipoOpen={};
 ICON.ipo='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12" stroke-dasharray="2 2"/></svg>';
-var _doneIpo=done; done=function(){ ipoStale=true; _doneIpo(); };
+var _doneIpo=done; done=function(){ ipoStale=true; _doneIpo(); if(master()&&!D.demo&&!ipoBusy&&Date.now()-ipoAt>45000) setTimeout(function(){ if(!ipoBusy&&tab!=='ipo'){ ipoStale=false; ipoLoad(); } },1200); };
 var IPOSORT=[['value','Value now, high to low'],['profit','Profit, high to low'],['pct','Profit %, high to low'],['loss','Profit, low to high'],['name','Name, A to Z']];
 function ipoLoad(){
   if(ipoBusy) return; ipoBusy=true;
-  bcall('ipoData',[],{action:'ipo'},function(o){
-    ipoBusy=false;
+  var fr=ipoForce?1:0; ipoForce=false;
+  bcall('ipoData',[fr],fr?{action:'ipo',fresh:1}:{action:'ipo'},function(o){
+    ipoBusy=false; ipoAt=Date.now();
     if(!o||o.error||!o.views){ ipoErr=(o&&o.error)||'Could not load the IPO figures. Tap refresh to try again.'; }
     else { ipoErr=''; IPO=o; try{ localStorage.setItem('ipo_'+KEY,JSON.stringify(o)); }catch(e){} }
     if(tab==='ipo'&&stock<0&&!document.hidden) ipoScreen();
@@ -1049,8 +1052,7 @@ function ipoDiag(){
   if(d.noPrice&&d.noPrice.length) bad.push(d.noPrice.length+' without a live price, counted at cost: '+d.noPrice.map(esc).join(', '));
   if(d.noCode) bad.push(plural(d.noCode,'row')+' with no ticker code');
   if(d.ledgerRows>4500) bad.push('the Ledger has '+d.ledgerRows+' rows, close to the 5000 the IPO sheet reads');
-  return '<div class="idiag'+(bad.length?' warn':'')+'">'+(bad.length?'To check: '+bad.join('; ')+'.':'Checks: every IPO row has a Purpose, all amounts are numbers, and every held IPO has a live price.')+
-    ' Read '+d.ledgerRows+' ledger rows in '+((d.ms||0)/1000).toFixed(1)+' s.</div>';
+  return bad.length?'<div class="idiag warn">To check: '+bad.join('; ')+'.</div>':'';
 }
 function ipoScreen(){
   var main=document.getElementById('main');
@@ -1061,7 +1063,7 @@ function ipoScreen(){
   if(ipoAcct!=='ALL'&&IPO.accounts.indexOf(ipoAcct)<0) ipoAcct='ALL';
   var v=ipoView(), ys=ipoYears(v), s=ipoSum(v);
   var m='<div class="idiag" style="margin-top:12px">IPO figures, master only. Updated '+esc(IPO.asOf||'')+(IPO.priceNote?'. '+esc(IPO.priceNote):'')+(ipoBusy?'. Refreshing...':'')+'</div>'+
-    (ipoErr?'<div class="note">'+esc(ipoErr)+'</div>':'')+ipoChips()+ipoCards(s)+ipoBars(v)+
+    (ipoErr?'<div class="note">'+esc(ipoErr)+'</div>':'')+ipoChips()+ipoCards(s)+(ipoYear===''?ipoBars(v):'')+
     '<h2>Year by year <small>tap a year</small></h2>'+(ys.length?ys.map(ipoYearCard).join(''):'<div class="note">No IPOs in this selection.</div>')+
     ipoHoldings(ys)+ipoDiag();
   main.innerHTML=m;
