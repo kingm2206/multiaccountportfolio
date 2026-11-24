@@ -18,7 +18,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=DM+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <script>/* Change this one word to switch the look: 'b' = dark and bold, 'a' = light Sunrise. */
 var THEME_DEFAULT='b';
-document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
+var mqL=window.matchMedia&&matchMedia('(prefers-color-scheme: light)');
+function setThemeAuto(){ var light=!!(mqL&&mqL.matches); document.documentElement.setAttribute('data-theme',light?'a':THEME_DEFAULT);
+  try{ var m=document.querySelector('meta[name=theme-color]'); if(m) m.setAttribute('content',light?'#4A32B0':'#0B1220'); }catch(e){} }
+setThemeAuto(); try{ if(mqL&&mqL.addEventListener) mqL.addEventListener('change',setThemeAuto); }catch(e){}
+window.addEventListener('scroll',function(){ document.documentElement.classList.toggle('sc',window.scrollY>6) },{passive:true});</script>
 <style>
   :root{
     --paper:#F4F5FA; --card:#FFFFFF; --ink:#141B2D; --mute:#667089; --line:#E5E8F1;
@@ -42,6 +46,12 @@ document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
   button:focus-visible,select:focus-visible{outline:2px solid #F5A524;outline-offset:2px}
   .wrap{max-width:620px;margin:0 auto}
 
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--paper);z-index:60;opacity:0;transition:opacity .15s;pointer-events:none}
+  html.sc body::before{opacity:1}
+  .mktrow{padding:calc(2px) 18px 0}
+  .mkt{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--chip);color:var(--on-indigo-mute)}
+  html[data-theme=b] .mkt{background:#15203A;color:#8FA0C0}
+  nav.many button{font-size:10.2px;padding:7px 0 6px}
   .band{background:linear-gradient(170deg,var(--indigo) 0%,var(--indigo-deep) 100%);color:#fff;
         border-radius:0 0 26px 26px;padding:calc(14px + env(safe-area-inset-top)) 0 20px}
   .who{position:sticky;top:0;z-index:12;background:var(--indigo-deep);color:#fff;
@@ -320,6 +330,7 @@ document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
 <body>
 <div class="wrap">
   <div class="band">
+    <div class="mktrow"><span class="mkt" id="mkt" hidden></span></div>
     <div class="idrow"><span class="rolep" id="rolep"> </span><span class="namep" id="namep"> </span></div>
     <div class="top">
       <div class="ttl"><h1>Family portfolio</h1><div class="when" id="when">Loading</div></div>
@@ -344,7 +355,7 @@ var KEY = (function () {
   if (m) { try { localStorage.setItem('pfkey', m[1]); } catch (e) {} return m[1]; }
   try { return localStorage.getItem('pfkey') || ''; } catch (e) { return ''; }
 })();
-var D=null, tab='overview', sel=-1, stock=-1, q='', limit=30, loadedAt=0;
+var D=null, tab='overview', sel=-1, stock=-1, q='', limit=25, loadedAt=0;
 var SORTS={holdings:'day_desc',profit:'profit_desc'}, sortKey='day_desc', detail=false;
 var ICON={
   overview:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>',
@@ -357,7 +368,7 @@ var TABS=[['overview','Overview'],['holdings','Holdings'],['profit','Profit'],['
 var BP=null, bpTimer=null, bpMsg='', bpOk=true, bpBusy=false, bpDups=[], bpAngel={pin:'',totp:''}, bpSetup=false;
 var BOOT={}; try{ var be=document.getElementById('boot'); BOOT=JSON.parse(be&&be.getAttribute('data-b')||'{}')||{}; }catch(e){ BOOT={}; }
 if(BOOT.start==='broker'){ tab='broker'; bpMsg=BOOT.note||''; bpOk=BOOT.ok!==false; }
-function tabList(){ return master()?TABS.concat([['ipo','IPO'],['broker','Brokers']]):TABS }
+function tabList(){ return master()?TABS.concat([['ipo','IPO'],['alerts','Alerts'],['broker','Brokers']]):TABS.concat([['alerts','Alerts']]) }
 function gsr(){ return typeof google!=='undefined'&&google.script&&google.script.run }
 function isDemo(){ return !gsr()&&!!(D&&D.demo) }
 function typing(){ var a=document.activeElement; return !!(a&&a.tagName==='INPUT') }
@@ -366,11 +377,19 @@ function bcall(fn,args,params,cb){
   else api(params,cb);
 }
 function bpDemo(){ return {accounts:[{name:'VIP',broker:'Zerodha',client:'MAK905',keys:true,connected:true,until:'24 Nov, 6:00 AM',url:'#'},{name:'BVP',broker:'Zerodha',client:'CGV585',keys:true,connected:false,until:'',url:'#'},{name:'ANGEL',broker:'Angel One',client:'',keys:false,connected:false,until:'',url:'',need:'key'}],dups:0} }
+var bpFastUntil=0, bpLastPoll=0, bpCached=false;
+function bpLogin(el){ bpFastUntil=Date.now()+240000;
+  try{ var w=window.open(el.href,'_blank'); if(w){ bpMsg='Finish the login in the window that opened. This page updates by itself when you are connected.'; bpOk=true; brokerScreen(); return false; } }catch(e){}
+  return true; }
+document.addEventListener('visibilitychange',function(){ if(!document.hidden&&tab==='broker'&&stock<0&&BP) brokerLoad(true); });
 function brokerLoad(quiet){
   if(isDemo()){ BP=BP||bpDemo(); if(tab==='broker'&&stock<0) brokerScreen(); return; }
-  bcall('brokerPanel',[],{action:'bpanel'},function(p){
+  var fast=Date.now()<bpFastUntil; bpLastPoll=Date.now();
+  bcall('brokerPanel',[fast?1:0],fast?{action:'bpanel',fresh:1}:{action:'bpanel'},function(p){
     if(p.error){ if(!quiet){ bpMsg=p.error; bpOk=false; } BP=BP||{accounts:[],dups:0}; }
-    else { BP=p; if(p.dups&&!bpDups.length) dupLoad(); if(!p.dups) bpDups=[]; }
+    else { var was=BP&&BP.accounts?BP.accounts.filter(function(a){return a.connected}).length:0, now=p.accounts.filter(function(a){return a.connected}).length;
+      if(fast&&now>was){ bpMsg='Broker connected. Updated automatically.'; bpOk=true; bpFastUntil=0; }
+      BP=p; try{ localStorage.setItem('bp_'+KEY,JSON.stringify(p)); }catch(e){} if(p.dups&&!bpDups.length) dupLoad(); if(!p.dups) bpDups=[]; }
     if(tab==='broker'&&stock<0&&!typing()) brokerScreen();
   });
 }
@@ -408,7 +427,9 @@ function angelGo(){
 function brokerScreen(){
   document.getElementById('band').innerHTML='';
   document.getElementById('fab').innerHTML='';
-  if(!bpTimer) bpTimer=setInterval(function(){ if(tab==='broker'&&stock<0&&!document.hidden&&!bpBusy) brokerLoad(true) },5000);
+  if(!bpTimer) bpTimer=setInterval(function(){ if(tab==='broker'&&stock<0&&!document.hidden&&!bpBusy&&(Date.now()<bpFastUntil||Date.now()-bpLastPoll>9000)) brokerLoad(true) },2500);
+  if(!BP){ try{ var bc=localStorage.getItem('bp_'+KEY); if(bc){ BP=JSON.parse(bc); bpCached=true; } }catch(e){} }
+  if(BP&&bpCached){ bpCached=false; setTimeout(function(){ brokerLoad(true) },50); }
   if(!BP){ document.getElementById('main').innerHTML=(bpMsg?'<div class="'+(bpOk?'okmsg':'err')+' pre">'+esc(bpMsg)+'</div>':'')+'<div class="center">Loading broker accounts</div>'; brokerLoad(); return; }
   var z=BP.accounts.filter(function(a){return a.broker==='Zerodha'}), an=BP.accounts.filter(function(a){return a.broker==='Angel One'})[0];
   var zn=z.filter(function(a){return a.connected}).length;
@@ -418,7 +439,7 @@ function brokerScreen(){
     z.map(function(a){
       return '<div class="item"><div class="head"><div class="nm"><div class="t"><span class="dotc'+(a.connected?' on':'')+'"></span>'+esc(a.name)+'</div>'+
         '<div class="s">'+(a.client?'Client ID <b>'+esc(a.client)+'</b> · ':'')+(a.connected?'Connected':(a.keys?'Not logged in':'No keys saved'))+'</div></div>'+
-        (a.url?'<a class="lbtn'+(a.connected?' ok':'')+'" href="'+esc(a.url)+'" target="_top">'+(a.connected?'Again':'Log in')+'</a>':'')+'</div></div>';
+        (a.url?'<a class="lbtn'+(a.connected?' ok':'')+'" href="'+esc(a.url)+'" target="_top" onclick="return bpLogin(this)">'+(a.connected?'Again':'Log in')+'</a>':'')+'</div></div>';
     }).join('')+'</div>';
   if(an){
     h+='<h2>Angel One <small>'+(an.connected?'connected today':'not connected')+'</small></h2><div class="card" style="padding:14px 16px">';
@@ -468,6 +489,14 @@ function dt(s){if(!s)return '—';var p=s.split('-');return Number(p[2])+' '+['J
 function plural(n,w){return n+' '+w+(n===1?'':'s')}
 function title(s){return s.disp||s.sym||s.name}
 function master(){return !!(D&&D.role==='master')}
+function istNow(){ var o={}; try{ new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,weekday:'short'}).formatToParts(new Date()).forEach(function(x){o[x.type]=x.value}); }catch(e){ return null; }
+  return {ymd:o.year+'-'+o.month+'-'+o.day, hm:(Number(o.hour)%24)*60+Number(o.minute), dow:{Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[o.weekday]}; }
+function mktText(){ var n=istNow(); if(!n) return ''; var hol=(D&&D.hol)||{};
+  if(n.dow===6) return 'Market closed · Saturday'; if(n.dow===0) return 'Market closed · Sunday';
+  if(hol[n.ymd]) return 'Market closed · Holiday, '+hol[n.ymd];
+  if(n.hm<555) return 'Market closed · opens 9:15 am'; if(n.hm>=930) return 'Market closed for today'; return ''; }
+function mktBar(){ var el=document.getElementById('mkt'); if(!el) return; var t=D&&!D.error?mktText():''; el.textContent=t; el.hidden=!t; }
+setInterval(function(){ if(!document.hidden) mktBar(); },60000);
 
 function tag(s){if(s.inactive)return '<span class="tag">Inactive, at cost</span>';return s.status==='none'?'<span class="tag">No live price</span>':(s.status==='manual'?'<span class="tag">Manual price</span>':'')}
 function accName(i){var a=D.accounts[i];return a.label||a.name}
@@ -486,9 +515,9 @@ function fail(msg){
   document.getElementById('when').textContent='Not updated';
   if(!D) document.getElementById('main').innerHTML='<div class="center">'+esc(msg)+'</div>';
 }
-function load(force){
+function load(force,quiet){
   if(busy) return;
-  if(force){ forceNext=true; ipoForce=true; }
+  if(force){ forceNext=true; if(!quiet) ipoForce=true; }
   if(!KEY){ D={error:'This app is not linked to your portfolio yet.',
     fix:'Open your personal dashboard link once in Safari. It ends with ?k= and a long code. Then add it to the Home Screen again.'}; done(); return; }
   busy=true;
@@ -516,7 +545,9 @@ function done(){ loadedAt=Date.now(); busy=false; document.getElementById('refre
   try{ if(!D.error&&!D.demo&&D.stocks&&KEY) localStorage.setItem('pfd_'+KEY,JSON.stringify(D)); }catch(e){}
   if(!D.error&&(!D.accounts||sel>=D.accounts.length)) sel=-1;
   if(!D.error&&stock>=0&&(!D.stocks||stock>=D.stocks.length)) stock=-1;
-  render(); }
+  render(); reval(); }
+var revalBusy=false;
+function reval(){ if(D&&D.gen&&!D.demo&&!revalBusy&&Date.now()-D.gen>75000){ revalBusy=true; setTimeout(function(){ revalBusy=false; load(true,true) },400); } }
 document.addEventListener('visibilitychange',function(){ if(!document.hidden&&Date.now()-loadedAt>30000) load(); });
 
 function scope(){
@@ -528,21 +559,25 @@ function scope(){
 }
 
 /* ---------- navigation ---------- */
-function setTab(t){tab=t;if(t==='ipo')ipoStale=true;stock=-1;q='';limit=30;sortKey=SORTS[t==='holdings'?'holdings':'profit']||'day_desc';render();window.scrollTo(0,0)}
-function pick(i){sel=i;stock=-1;q='';limit=30;render();window.scrollTo(0,0)}
-function pickTab(i){sel=i;tab='holdings';stock=-1;q='';limit=30;sortKey=SORTS.holdings;render();window.scrollTo(0,0)}
-function openStock(i){stock=i;q='';limit=30;render();window.scrollTo(0,0)}
-function closeStock(){stock=-1;limit=30;render();window.scrollTo(0,0)}
+function setTab(t){tab=t;if(t==='ipo')ipoStale=true;if(t==='alerts')alrStale=true;stock=-1;q='';limit=25;sortKey=SORTS[t==='holdings'?'holdings':'profit']||'day_desc';render();window.scrollTo(0,0)}
+function pick(i){sel=i;stock=-1;q='';limit=25;render();window.scrollTo(0,0)}
+function pickTab(i){sel=i;tab='holdings';stock=-1;q='';limit=25;sortKey=SORTS.holdings;render();window.scrollTo(0,0)}
+function openStock(i){stock=i;q='';limit=25;render();window.scrollTo(0,0)}
+function closeStock(){stock=-1;limit=25;render();window.scrollTo(0,0)}
 function liveAmt(){ var e=document.getElementById('amtv'); if(e) e.textContent=inr(fAmount()); }
-function setSort(v){sortKey=v;SORTS[tab==='holdings'?'holdings':'profit']=v;limit=30;paint()}
+function setSort(v){sortKey=v;SORTS[tab==='holdings'?'holdings':'profit']=v;limit=25;paint()}
 function toggleDetail(){detail=!detail;render();}
-function search(v){q=v.toLowerCase();limit=30;paint()}
-function more(){limit+=60;paint()}
+function search(v){q=v.toLowerCase();limit=25;paint()}
+function more(){limit+=40;paint()}
 function paint(){
   var el=document.getElementById('list');
   if(!el){render();return;}
   el.innerHTML = tab==='holdings'?holdingList():(tab==='profit'?profitList():txList(scope().tx,sel<0));
+  autoMore();
 }
+var moreIO=null;
+function autoMore(){ try{ if(moreIO){ moreIO.disconnect(); moreIO=null; } var b=document.querySelector('button.more[onclick="more()"]'); if(!b||!window.IntersectionObserver) return;
+  moreIO=new IntersectionObserver(function(es){ if(es[0].isIntersecting){ moreIO.disconnect(); moreIO=null; more(); } },{rootMargin:'400px'}); moreIO.observe(b); }catch(e){} }
 
 /* ---------- sorting ---------- */
 function visible(lines){
@@ -672,14 +707,17 @@ function render(){
     return;
   }
   document.getElementById('when').textContent='Updated '+D.asOf+(D.priceNote?'. '+D.priceNote:'');
-  document.getElementById('rolep').textContent=master()?'Master':'Viewer';
+  mktBar();
+  document.getElementById('rolep').textContent=master()?'Master':(D.role==='demo'?'Demo':'Viewer');
   document.getElementById('namep').textContent=D.viewer||'Portfolio';
   document.getElementById('acctbox').textContent = sel<0 ? '' : accName(sel);
+  document.getElementById('nav').className=tabList().length>6?'in many':'in';
   document.getElementById('nav').innerHTML=tabList().map(function(t){
     return '<button class="'+(tab===t[0]&&stock<0?'on':'')+'" onclick="setTab(\''+t[0]+'\')">'+ICON[t[0]]+t[1]+'</button>'}).join('');
   if(stock>=0){ stockScreen(D.stocks[stock]); return; }
   if(tab==='broker'&&master()){ brokerScreen(); return; }
   if(tab==='ipo'&&master()){ ipoScreen(); return; }
+  if(tab==='alerts'){ alertsScreen(); return; }
   var sc=scope(), t=sc.t, m='';
   var chips=D.accounts.length>1 ? '<div class="chips"><button class="chip'+(sel<0?' on':'')+'" onclick="pick(-1)">All accounts</button>'+
     D.accounts.map(function(a,i){return '<button class="chip'+(sel===i?' on':'')+'" onclick="pick('+i+')">'+esc(accName(i))+'</button>'}).join('')+'</div>' : '';
@@ -688,7 +726,7 @@ function render(){
   document.getElementById('band').innerHTML=chips+
     '<div class="hero"><div class="heroTop">'+
       '<div class="hv"><div class="cap">Value of shares held'+(sel<0?'':' · '+esc(sc.label))+'</div>'+
-      '<div class="fig">'+inr(t.mv)+'</div></div>'+
+      '<div class="fig">'+(D.role==='demo'&&sel<0?'₹ ••••••':inr(t.mv))+'</div></div>'+
       '<div class="hd"><div class="lab">Today</div>'+
       '<div class="amt '+dc+'">'+(t.day>0.5?'▲ ':(t.day<-0.5?'▼ ':''))+sgn(t.day)+'</div>'+
       (prev>0?'<div class="pc '+dc+'">'+(t.day<-0.5?'−':'+')+pc(t.day,prev)+'</div>':'')+'</div>'+
@@ -951,7 +989,10 @@ function paintSheet(){
 /* ---------- IPO tab (master only) ---------- */
 var ipoForce=false, ipoAt=0, IPO=null, ipoBusy=false, ipoErr='', ipoStale=true, ipoAcct='ALL', ipoYear='', ipoSort='value', ipoOpen={};
 ICON.ipo='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12" stroke-dasharray="2 2"/></svg>';
-var _doneIpo=done; done=function(){ ipoStale=true; _doneIpo(); if(master()&&!D.demo&&!ipoBusy&&Date.now()-ipoAt>45000) setTimeout(function(){ if(!ipoBusy&&tab!=='ipo'){ ipoStale=false; ipoLoad(); } },1200); };
+ICON.alerts='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+var _doneIpo=done; done=function(){ ipoStale=true; _doneIpo(); if(master()&&!D.demo&&!ipoBusy&&Date.now()-ipoAt>45000) setTimeout(function(){ if(!ipoBusy&&tab!=='ipo'){ ipoStale=false; ipoLoad(); } },1200);
+  if(master()&&!D.demo&&!BP) setTimeout(function(){ if(!bpBusy&&!BP) brokerLoad(true) },7000);
+  if(!D.demo&&!ALR&&!alrBusy) setTimeout(function(){ if(!alrBusy&&!ALR&&tab!=='alerts'){ alrStale=false; alertsLoad(); } },4000); };
 var IPOSORT=[['value','Value now, high to low'],['profit','Profit, high to low'],['pct','Profit %, high to low'],['loss','Profit, low to high'],['name','Name, A to Z']];
 function ipoLoad(){
   if(ipoBusy) return; ipoBusy=true;
@@ -1070,6 +1111,57 @@ function ipoScreen(){
 }
 
 try{ var _c=KEY&&localStorage.getItem('pfd_'+KEY); if(_c){ D=JSON.parse(_c); if(D&&!D.error&&D.stocks) done(); else D=null; } }catch(e){ D=null; }
+
+/* ---------- Alerts: dividends, splits, bonus and other actions on your holdings; master also sees phone-push setup ---------- */
+var ALR=null, alrBusy=false, alrStale=true, alrErr='', alrNote='';
+function alertsLoad(fresh){
+  if(alrBusy) return; alrBusy=true;
+  if(isDemo()){ alrBusy=false; ALR={ok:true,src:'Demo',items:[]}; if(tab==='alerts'&&stock<0) alertsScreen(); return; }
+  bcall('alertsData',[fresh?1:0],fresh?{action:'alerts',fresh:1}:{action:'alerts'},function(o){
+    alrBusy=false;
+    if(!o||o.error||!o.items){ alrErr=(o&&o.error)||'Could not load alerts. Pull to refresh or try again.'; }
+    else { alrErr=''; ALR=o; try{ localStorage.setItem('alr_'+KEY,JSON.stringify(o)); }catch(e){} }
+    if(tab==='alerts'&&stock<0&&!typing()) alertsScreen();
+  });
+}
+function alrAgo(ms){ if(!ms) return ''; var m=Math.round((Date.now()-ms)/60000); if(m<1) return 'just now'; if(m<60) return m+' min ago'; var h=Math.round(m/60); if(h<24) return h+' h ago'; return Math.round(h/24)+' days ago'; }
+function alrPushTest(){ alrNote='Sending...'; alertsScreen(); bcall('pushTest',[],{action:'pushtest'},function(r){ alrNote=r&&r.ok?'Test sent. It should reach your phone in a few seconds.':((r&&r.error)||'Could not send.'); alertsScreen(); }); }
+function alrCopy(t){ try{ navigator.clipboard.writeText(t); alrNote='Copied: '+t; }catch(e){ alrNote='Topic: '+t; } alertsScreen(); }
+function alrRow(a){
+  var tone=a.type==='Dividend'?'g':(a.type==='Other'?'':'m');
+  return '<div class="isr"><div class="l"><div class="t">'+esc(a.name)+'<span class="inp">'+esc(a.type)+'</span></div>'+
+    '<div class="s">'+esc(a.subject)+'</div>'+
+    '<div class="s">You hold '+un(a.units)+' shares'+(a.est?' · about '+inr(a.est):'')+'</div></div>'+
+    '<div class="r"><div class="t" style="font-size:13px">'+(a.up?'Ex-date':'Went ex')+'</div><div class="s">'+esc(dt(a.ex))+'</div></div></div>';
+}
+function alertsScreen(){
+  var main=document.getElementById('main');
+  document.getElementById('band').innerHTML=''; document.getElementById('fab').innerHTML='';
+  if(!ALR){ try{ var c=localStorage.getItem('alr_'+KEY); if(c) ALR=JSON.parse(c); }catch(e){} }
+  if(alrStale&&!alrBusy){ alrStale=false; alertsLoad(); }
+  if(!ALR){ main.innerHTML=alrErr?'<div class="card" style="margin-top:22px;padding:16px;font-weight:700">'+esc(alrErr)+'</div>':'<div class="center">Loading alerts</div>'; return; }
+  var m='<div class="idiag" style="margin-top:12px">Dividends, splits, bonus issues and other actions on shares you hold. '+(ALR.src?'Source: '+esc(ALR.src)+'. ':'')+(ALR.at?'Checked '+alrAgo(ALR.at)+'. ':'')+(alrBusy?'Refreshing...':'')+'</div>';
+  if(alrErr) m+='<div class="note">'+esc(alrErr)+'</div>';
+  if(ALR.src==='BSE') m+='<div class="note">Source: BSE. It lists upcoming dividends, splits and bonus about 3 weeks ahead, matched to your holdings by company name.</div>'; else if(ALR.src&&ALR.src!=='Demo') m+='<div class="note">BSE could not be reached, so only actions of the last 3 months are shown.</div>';
+  var up=ALR.items.filter(function(a){return a.up}), past=ALR.items.filter(function(a){return !a.up});
+  m+='<h2>Coming up <small>'+plural(up.length,'action')+'</small></h2>'+(up.length?'<div class="card" style="padding:4px 16px">'+up.map(alrRow).join('')+'</div>':'<div class="note">Nothing announced for your holdings.</div>');
+  if(past.length) m+='<h2>Recent <small>'+plural(past.length,'action')+'</small></h2><div class="card" style="padding:4px 16px">'+past.slice(0,20).map(alrRow).join('')+'</div>';
+  var S=ALR.sys;
+  if(S){
+    m+='<h2>Phone alerts <small>master only</small></h2><div class="card" style="padding:12px 16px">'+
+      '<div style="font-weight:700;font-size:14px;line-height:1.5">You get a summary after the market closes and a note when a dividend, split or bonus is announced on your shares, even when the app is closed.</div>'+
+      '<div class="s" style="margin-top:8px;font-size:13px;color:var(--mute);font-weight:600;line-height:1.55">1. Install the free app <b>ntfy</b> (App Store or Play Store).<br>2. In ntfy tap +, choose Subscribe to topic, and enter:</div>'+
+      '<div style="margin:8px 0;font-weight:800;font-size:15px;word-break:break-all">'+esc(S.topic)+'</div>'+
+      '<div class="btnrow"><button class="btn ghost" onclick="alrCopy(\''+esc(S.topic)+'\')">Copy topic</button><button class="btn primary" onclick="alrPushTest()">Send test</button></div>'+
+      (alrNote?'<div class="s" style="margin-top:8px;font-weight:700">'+esc(alrNote)+'</div>':'')+
+      '<div class="s" style="margin-top:8px;font-size:12px;color:var(--mute);font-weight:600">Keep the topic private. Messages show day change and top movers only, never your total value.</div></div>';
+    m+='<h2>Safety net <small>master only</small></h2><div class="card" style="padding:12px 16px;font-size:13.5px;font-weight:600;line-height:1.7">'+
+      'Backup: '+(S.backup?esc(alrAgo(S.backup.at))+' · '+esc(S.backup.name)+'. Newest '+S.backup.kept+' kept in your Drive folder, every 2 days.':'not run yet')+'<br>'+
+      'Data refresh in background: '+(S.warm?'last ran '+esc(alrAgo(S.warm.at)):'not run yet')+'</div>';
+    if(S.log&&S.log.length) m+='<h2>Recent notifications</h2><div class="card" style="padding:4px 16px">'+S.log.slice(0,8).map(function(e){return '<div class="isr"><div class="l"><div class="t">'+esc(e.title)+'</div><div class="s" style="white-space:pre-line">'+esc(e.msg)+'</div></div><div class="r"><div class="s">'+esc(alrAgo(e.at))+'</div></div></div>'}).join('')+'</div>';
+  }
+  main.innerHTML=m;
+}
 load();
 </script>
 </body>
