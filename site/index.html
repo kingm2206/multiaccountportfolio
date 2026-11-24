@@ -48,9 +48,13 @@ window.addEventListener('scroll',function(){ document.documentElement.classList.
 
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top);background:var(--paper);z-index:60;opacity:0;transition:opacity .15s;pointer-events:none}
   html.sc body::before{opacity:1}
-  .mktrow{padding:calc(2px) 18px 0}
-  .mkt{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--chip);color:var(--on-indigo-mute)}
-  html[data-theme=b] .mkt{background:#15203A;color:#8FA0C0}
+  .mkt{flex:1;min-width:0;text-align:center;font-size:11px;font-weight:700;color:var(--on-indigo-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mkt[hidden]{display:block;visibility:hidden}
+  .idr{display:flex;align-items:center;gap:8px;flex:none}
+  .bell{position:relative;width:28px;height:28px;border-radius:50%;background:var(--chip);display:grid;place-items:center;color:inherit}
+  .bell svg{width:15px;height:15px}
+  .bell i{position:absolute;top:3px;right:4px;width:7px;height:7px;border-radius:50%;background:#F5A524;box-shadow:0 0 0 1.5px var(--indigo)}
+  html[data-theme=b] .mkt{color:#8FA0C0}
   nav.many button{font-size:10.2px;padding:7px 0 6px}
   .band{background:linear-gradient(170deg,var(--indigo) 0%,var(--indigo-deep) 100%);color:#fff;
         border-radius:0 0 26px 26px;padding:calc(14px + env(safe-area-inset-top)) 0 20px}
@@ -330,8 +334,7 @@ window.addEventListener('scroll',function(){ document.documentElement.classList.
 <body>
 <div class="wrap">
   <div class="band">
-    <div class="mktrow"><span class="mkt" id="mkt" hidden></span></div>
-    <div class="idrow"><span class="rolep" id="rolep"> </span><span class="namep" id="namep"> </span></div>
+        <div class="idrow"><span class="rolep" id="rolep">&nbsp;</span><span class="mkt" id="mkt" hidden></span><span class="idr"><button class="bell" id="bell" onclick="setTab('alerts')" aria-label="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><i id="bdot" hidden></i></button><span class="namep" id="namep">&nbsp;</span></span></div>
     <div class="top">
       <div class="ttl"><h1>Family portfolio</h1><div class="when" id="when">Loading</div></div>
       <div class="acctbox" id="acctbox"></div>
@@ -368,7 +371,7 @@ var TABS=[['overview','Overview'],['holdings','Holdings'],['profit','Profit'],['
 var BP=null, bpTimer=null, bpMsg='', bpOk=true, bpBusy=false, bpDups=[], bpAngel={pin:'',totp:''}, bpSetup=false;
 var BOOT={}; try{ var be=document.getElementById('boot'); BOOT=JSON.parse(be&&be.getAttribute('data-b')||'{}')||{}; }catch(e){ BOOT={}; }
 if(BOOT.start==='broker'){ tab='broker'; bpMsg=BOOT.note||''; bpOk=BOOT.ok!==false; }
-function tabList(){ return master()?TABS.concat([['ipo','IPO'],['alerts','Alerts'],['broker','Brokers']]):TABS.concat([['alerts','Alerts']]) }
+function tabList(){ return master()?TABS.concat([['ipo','IPO'],['broker','Brokers']]):TABS }
 function gsr(){ return typeof google!=='undefined'&&google.script&&google.script.run }
 function isDemo(){ return !gsr()&&!!(D&&D.demo) }
 function typing(){ var a=document.activeElement; return !!(a&&a.tagName==='INPUT') }
@@ -495,6 +498,7 @@ function mktText(){ var n=istNow(); if(!n) return ''; var hol=(D&&D.hol)||{};
   if(n.dow===6) return 'Market closed · Saturday'; if(n.dow===0) return 'Market closed · Sunday';
   if(hol[n.ymd]) return 'Market closed · Holiday, '+hol[n.ymd];
   if(n.hm<555) return 'Market closed · opens 9:15 am'; if(n.hm>=930) return 'Market closed for today'; return ''; }
+function bellDot(){ var b=document.getElementById('bdot'); if(b) b.hidden=!(ALR&&ALR.items&&ALR.items.some(function(a){return a.up})); }
 function mktBar(){ var el=document.getElementById('mkt'); if(!el) return; var t=D&&!D.error?mktText():''; el.textContent=t; el.hidden=!t; }
 setInterval(function(){ if(!document.hidden) mktBar(); },60000);
 
@@ -1121,6 +1125,7 @@ function alertsLoad(fresh){
     alrBusy=false;
     if(!o||o.error||!o.items){ alrErr=(o&&o.error)||'Could not load alerts. Pull to refresh or try again.'; }
     else { alrErr=''; ALR=o; try{ localStorage.setItem('alr_'+KEY,JSON.stringify(o)); }catch(e){} }
+    bellDot();
     if(tab==='alerts'&&stock<0&&!typing()) alertsScreen();
   });
 }
@@ -1140,9 +1145,8 @@ function alertsScreen(){
   if(!ALR){ try{ var c=localStorage.getItem('alr_'+KEY); if(c) ALR=JSON.parse(c); }catch(e){} }
   if(alrStale&&!alrBusy){ alrStale=false; alertsLoad(); }
   if(!ALR){ main.innerHTML=alrErr?'<div class="card" style="margin-top:22px;padding:16px;font-weight:700">'+esc(alrErr)+'</div>':'<div class="center">Loading alerts</div>'; return; }
-  var m='<div class="idiag" style="margin-top:12px">Dividends, splits, bonus issues and other actions on shares you hold. '+(ALR.src?'Source: '+esc(ALR.src)+'. ':'')+(ALR.at?'Checked '+alrAgo(ALR.at)+'. ':'')+(alrBusy?'Refreshing...':'')+'</div>';
+  var m='<div class="idiag" style="margin-top:12px">Dividends, splits, bonus issues and other actions on shares you hold. '+(ALR.at?'Checked '+alrAgo(ALR.at)+'. ':'')+(alrBusy?'Refreshing...':'')+'</div>';
   if(alrErr) m+='<div class="note">'+esc(alrErr)+'</div>';
-  if(ALR.src==='BSE') m+='<div class="note">Source: BSE. It lists upcoming dividends, splits and bonus about 3 weeks ahead, matched to your holdings by company name.</div>'; else if(ALR.src&&ALR.src!=='Demo') m+='<div class="note">BSE could not be reached, so only actions of the last 3 months are shown.</div>';
   var up=ALR.items.filter(function(a){return a.up}), past=ALR.items.filter(function(a){return !a.up});
   m+='<h2>Coming up <small>'+plural(up.length,'action')+'</small></h2>'+(up.length?'<div class="card" style="padding:4px 16px">'+up.map(alrRow).join('')+'</div>':'<div class="note">Nothing announced for your holdings.</div>');
   if(past.length) m+='<h2>Recent <small>'+plural(past.length,'action')+'</small></h2><div class="card" style="padding:4px 16px">'+past.slice(0,20).map(alrRow).join('')+'</div>';
