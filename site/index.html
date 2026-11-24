@@ -43,7 +43,7 @@ document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
   .wrap{max-width:620px;margin:0 auto}
 
   .band{background:linear-gradient(170deg,var(--indigo) 0%,var(--indigo-deep) 100%);color:#fff;
-        border-radius:0 0 26px 26px;padding:14px 0 20px}
+        border-radius:0 0 26px 26px;padding:calc(14px + env(safe-area-inset-top)) 0 20px}
   .who{position:sticky;top:0;z-index:12;background:var(--indigo-deep);color:#fff;
        padding:calc(7px + env(safe-area-inset-top)) 18px 7px;display:flex;align-items:center;gap:9px;
        box-shadow:0 1px 0 rgba(255,255,255,.14)}
@@ -277,6 +277,44 @@ document.documentElement.setAttribute('data-theme',THEME_DEFAULT);</script>
   .dupb button{flex:1;padding:11px 8px;border-radius:12px;font-weight:800;text-align:center;font-size:13.5px;background:var(--line)}
   .dupb button.pri{background:var(--indigo);color:#fff}
   html[data-theme=b] .dupb button.pri{color:#06231F}
+
+  /* IPO tab */
+  .ichips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:none;margin-top:10px}
+  .ichip{flex:none;padding:7px 14px;border-radius:999px;background:var(--line);font-weight:700;font-size:13px;white-space:nowrap}
+  .ichip.on{background:var(--nav-on-bg);color:var(--nav-on);box-shadow:inset 0 0 0 1.5px var(--nav-on)}
+  .itiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .itile{background:var(--card);border-radius:16px;padding:12px 14px;box-shadow:0 1px 0 var(--line);min-width:0}
+  .itile.wide{grid-column:1/-1}
+  .itile .k{font-size:12px;color:var(--mute);font-weight:700}
+  .itile .v{font-size:19px;font-weight:800;margin-top:3px;white-space:nowrap}
+  .itile.wide .v{font-size:26px}
+  .itile .s{font-size:12px;color:var(--mute);margin-top:2px;font-weight:600}
+  .ibar{display:grid;grid-template-columns:42px 1fr auto;gap:8px;align-items:center;margin:7px 0;font-size:12.5px}
+  .ibar .by{font-weight:800;color:var(--mute)}
+  .ibar .bt{height:12px;background:var(--line);border-radius:6px;overflow:hidden}
+  .ibar .bt i{display:block;height:100%;border-radius:6px}
+  .ibar .bv{font-weight:700;white-space:nowrap}
+  .ibar.two{margin:3px 0}
+  .ibg{background:var(--gain)} .ibr{background:var(--loss)} .ibi{background:var(--nav-on)} .ibn{background:var(--mute)}
+  .ileg{display:flex;gap:14px;font-size:12px;color:var(--mute);font-weight:700;margin:2px 0 6px}
+  .ileg b{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .iy{background:var(--card);border-radius:16px;margin-top:10px;box-shadow:0 1px 0 var(--line);overflow:hidden}
+  .iy summary{list-style:none;cursor:pointer;padding:13px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .iy summary::-webkit-details-marker{display:none}
+  .iy summary .yt{font-size:18px;font-weight:800}
+  .iy summary .ys{font-size:12.5px;color:var(--mute);font-weight:600}
+  .iy summary .yp{text-align:right;font-weight:800;font-size:16px}
+  .iy summary .yp small{display:block;font-size:12px;font-weight:600;color:var(--mute)}
+  .iy .yb{padding:0 16px 12px}
+  .isr{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+  .isr .l{min-width:0} .isr .r{text-align:right;flex:none}
+  .isr .t{font-weight:700;font-size:14.5px;line-height:1.25}
+  .isr .s{font-size:12.5px;color:var(--mute);margin-top:2px;font-weight:600}
+  .isr .r .t{font-size:15px}
+  .inp{display:inline-block;margin-left:6px;font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--marigold-bg);color:var(--marigold-ink);vertical-align:1px}
+  .idiag{font-size:12.5px;color:var(--mute);margin:18px 4px 0;line-height:1.5;font-weight:600}
+  .idiag.warn{color:var(--marigold-ink);background:var(--marigold-bg);border-radius:12px;padding:10px 12px}
+  .isel{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:7px 10px;font-weight:700;font-size:13px}
 </style>
 </head>
 <body>
@@ -319,7 +357,7 @@ var TABS=[['overview','Overview'],['holdings','Holdings'],['profit','Profit'],['
 var BP=null, bpTimer=null, bpMsg='', bpOk=true, bpBusy=false, bpDups=[], bpAngel={pin:'',totp:''}, bpSetup=false;
 var BOOT={}; try{ var be=document.getElementById('boot'); BOOT=JSON.parse(be&&be.getAttribute('data-b')||'{}')||{}; }catch(e){ BOOT={}; }
 if(BOOT.start==='broker'){ tab='broker'; bpMsg=BOOT.note||''; bpOk=BOOT.ok!==false; }
-function tabList(){ return master()?TABS.concat([['broker','Brokers']]):TABS }
+function tabList(){ return master()?TABS.concat([['ipo','IPO'],['broker','Brokers']]):TABS }
 function gsr(){ return typeof google!=='undefined'&&google.script&&google.script.run }
 function isDemo(){ return !gsr()&&!!(D&&D.demo) }
 function typing(){ var a=document.activeElement; return !!(a&&a.tagName==='INPUT') }
@@ -473,10 +511,11 @@ function jsonp(){
   document.head.appendChild(s);
 }
 function done(){ loadedAt=Date.now(); busy=false; document.getElementById('refresh').classList.remove('spin');
+  try{ if(!D.error&&!D.demo&&D.stocks&&KEY) localStorage.setItem('pfd_'+KEY,JSON.stringify(D)); }catch(e){}
   if(!D.error&&(!D.accounts||sel>=D.accounts.length)) sel=-1;
   if(!D.error&&stock>=0&&(!D.stocks||stock>=D.stocks.length)) stock=-1;
   render(); }
-document.addEventListener('visibilitychange',function(){ if(!document.hidden&&Date.now()-loadedAt>120000) load(); });
+document.addEventListener('visibilitychange',function(){ if(!document.hidden&&Date.now()-loadedAt>30000) load(); });
 
 function scope(){
   if(sel<0) return {t:D.totals,label:'All accounts',tx:D.txns,
@@ -487,7 +526,7 @@ function scope(){
 }
 
 /* ---------- navigation ---------- */
-function setTab(t){tab=t;stock=-1;q='';limit=30;sortKey=SORTS[t==='holdings'?'holdings':'profit']||'day_desc';render();window.scrollTo(0,0)}
+function setTab(t){tab=t;if(t==='ipo')ipoStale=true;stock=-1;q='';limit=30;sortKey=SORTS[t==='holdings'?'holdings':'profit']||'day_desc';render();window.scrollTo(0,0)}
 function pick(i){sel=i;stock=-1;q='';limit=30;render();window.scrollTo(0,0)}
 function pickTab(i){sel=i;tab='holdings';stock=-1;q='';limit=30;sortKey=SORTS.holdings;render();window.scrollTo(0,0)}
 function openStock(i){stock=i;q='';limit=30;render();window.scrollTo(0,0)}
@@ -630,7 +669,7 @@ function render(){
       (D.fix?'<div style="color:var(--mute);margin-top:8px;line-height:1.5">'+esc(D.fix)+'</div>':'')+'</div>';
     return;
   }
-  document.getElementById('when').textContent='Updated '+D.asOf+'. Prices up to 20 min late.';
+  document.getElementById('when').textContent='Updated '+D.asOf+(D.priceNote?'. '+D.priceNote:'');
   document.getElementById('rolep').textContent=master()?'Master':'Viewer';
   document.getElementById('namep').textContent=D.viewer||'Portfolio';
   document.getElementById('acctbox').textContent = sel<0 ? '' : accName(sel);
@@ -638,6 +677,7 @@ function render(){
     return '<button class="'+(tab===t[0]&&stock<0?'on':'')+'" onclick="setTab(\''+t[0]+'\')">'+ICON[t[0]]+t[1]+'</button>'}).join('');
   if(stock>=0){ stockScreen(D.stocks[stock]); return; }
   if(tab==='broker'&&master()){ brokerScreen(); return; }
+  if(tab==='ipo'&&master()){ ipoScreen(); return; }
   var sc=scope(), t=sc.t, m='';
   var chips=D.accounts.length>1 ? '<div class="chips"><button class="chip'+(sel<0?' on':'')+'" onclick="pick(-1)">All accounts</button>'+
     D.accounts.map(function(a,i){return '<button class="chip'+(sel===i?' on':'')+'" onclick="pick('+i+')">'+esc(accName(i))+'</button>'}).join('')+'</div>' : '';
@@ -656,7 +696,6 @@ function render(){
   if(tab==='overview'){
     if(D.empty) m+='<div class="note">There are no rows in the Ledger tab yet. Paste your table from Excel into the Ledger tab at cell A2, then tap refresh.</div>';
     m+=scopeBar()+moneyCard(t);
-    if(t.atCost>0.5) m+='<div class="note">'+inr(t.atCost)+' is in holdings with no live price yet, such as IPO shares awaiting listing. They are counted at cost.</div>';
     if(master()&&sel<0&&D.warnings&&D.warnings.length) m+='<details class="note"><summary>'+plural(D.warnings.length,'thing')+' to check in the ledger</summary><ul>'+
       D.warnings.slice(0,30).map(function(w){return '<li>'+esc(w)+'</li>'}).join('')+'</ul></details>';
     if(sel<0&&D.accounts.length>1) m+='<h2>Accounts <small>tap to see holdings</small></h2><div class="list">'+D.accounts.map(accountRow).join('')+'</div>';
@@ -906,6 +945,129 @@ function paintSheet(){
   el.innerHTML=h;
 }
 
+
+/* ---------- IPO tab (master only) ---------- */
+var IPO=null, ipoBusy=false, ipoErr='', ipoStale=true, ipoAcct='ALL', ipoYear='', ipoSort='value', ipoOpen={};
+ICON.ipo='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M13 6v12" stroke-dasharray="2 2"/></svg>';
+var _doneIpo=done; done=function(){ ipoStale=true; _doneIpo(); };
+var IPOSORT=[['value','Value now, high to low'],['profit','Profit, high to low'],['pct','Profit %, high to low'],['loss','Profit, low to high'],['name','Name, A to Z']];
+function ipoLoad(){
+  if(ipoBusy) return; ipoBusy=true;
+  bcall('ipoData',[],{action:'ipo'},function(o){
+    ipoBusy=false;
+    if(!o||o.error||!o.views){ ipoErr=(o&&o.error)||'Could not load the IPO figures. Tap refresh to try again.'; }
+    else { ipoErr=''; IPO=o; try{ localStorage.setItem('ipo_'+KEY,JSON.stringify(o)); }catch(e){} }
+    if(tab==='ipo'&&stock<0&&!document.hidden) ipoScreen();
+  });
+}
+function ipoView(){ return IPO.views[ipoAcct]||IPO.views.ALL }
+function ipoYears(v){ return ipoYear?v.y.filter(function(y){return y.y===ipoYear}):v.y }
+function ipoSum(v){
+  if(!ipoYear) return v.s;
+  var y=v.y.filter(function(a){return a.y===ipoYear})[0];
+  if(!y) return {n:0,a:0,cap:0,wd:0,cost:0,val:0,real:0,unr:0,held:0,sold:0,win:0,lose:0,tot:0,ret:null,x:null};
+  var o={n:y.n,a:y.a,cap:y.cap,wd:y.wd,val:y.val,real:y.real,unr:y.unr,tot:y.tot,ret:y.ret,x:y.x,cost:0,held:0,sold:0,win:0,lose:0};
+  y.st.forEach(function(s){ if(s.h>0){o.held++;o.cost+=s.c}else o.sold++; if(s.t>0.5)o.win++; else if(s.t<-0.5)o.lose++; });
+  return o;
+}
+function xr(x){ return x==null||x===''?'n/a':(x==='over'?'over 1000%':(x*100).toFixed(1)+'%') }
+function rp(x){ return x==null?'':(x<0?'−':'+')+(Math.abs(x)*100).toFixed(1)+'%' }
+function ipoSetA(i){ ipoAcct=i<0?'ALL':IPO.accounts[i]; ipoScreen() }
+function ipoSetY(y){ ipoYear=y; ipoScreen() }
+function ipoSetS(v){ ipoSort=v; ipoScreen() }
+function ipoChips(){
+  var a='<div class="ichips"><button class="ichip'+(ipoAcct==='ALL'?' on':'')+'" onclick="ipoSetA(-1)">All accounts</button>'+
+    IPO.accounts.map(function(n,i){return '<button class="ichip'+(ipoAcct===n?' on':'')+'" onclick="ipoSetA('+i+')">'+esc(n)+'</button>'}).join('')+'</div>';
+  var y='<div class="ichips" style="margin-top:2px"><button class="ichip'+(ipoYear===''?' on':'')+'" onclick="ipoSetY(\'\')">All years</button>'+
+    IPO.views.ALL.y.map(function(r){return '<button class="ichip'+(ipoYear===r.y?' on':'')+'" onclick="ipoSetY(\''+r.y+'\')">'+esc(r.y)+'</button>'}).join('')+'</div>';
+  return a+y;
+}
+function ipoTile(k,v,s,cl,wide){ return '<div class="itile'+(wide?' wide':'')+'"><div class="k">'+k+'</div><div class="v '+(cl||'')+'">'+v+'</div>'+(s?'<div class="s">'+s+'</div>':'')+'</div>' }
+function ipoCards(s){
+  return '<div class="itiles">'+
+    ipoTile('Total profit',sgn(s.tot),(s.ret!=null?rp(s.ret)+' on money put in':'')+(s.x!=null?' · '+xr(s.x)+' a year':''),cls(s.tot),true)+
+    ipoTile('Put into IPOs',inr(s.cap),plural(s.n,'IPO')+' · '+plural(s.a,'allotment'))+
+    ipoTile('Taken out by selling',inr(s.wd),plural(s.sold,'IPO')+' fully sold')+
+    ipoTile('Value of shares held',inr(s.val),plural(s.held,'IPO')+' still held')+
+    ipoTile('Cost of shares held',inr(s.cost),'Net capital in '+(s.cap-s.wd>0?inr(s.cap-s.wd):'nothing, all back'))+
+    ipoTile('Profit booked',sgn(s.real),'',cls(s.real))+
+    ipoTile('Unrealised profit',sgn(s.unr),'',cls(s.unr))+
+    ipoTile('Annual return (XIRR)',xr(s.x),'',s.x==null?'':'up')+
+    ipoTile('Winners and losers',s.win+' / '+s.lose,'IPOs in profit / in loss')+
+  '</div>';
+}
+function ipoBars(v){
+  var ys=v.y.slice(); if(!ys.length) return '';
+  var m1=0,m2=0; ys.forEach(function(y){ m1=Math.max(m1,Math.abs(y.tot)); m2=Math.max(m2,Math.abs(y.net),Math.abs(y.val)); });
+  var c1=ys.map(function(y){ var w=m1>0?Math.max(2,Math.abs(y.tot)/m1*100):0;
+    return '<div class="ibar"><span class="by">'+esc(y.y)+'</span><div class="bt"><i class="'+(y.tot>=0?'ibg':'ibr')+'" style="width:'+w.toFixed(1)+'%"></i></div><b class="bv '+cls(y.tot)+'">'+sgn(y.tot)+'</b></div>'; }).join('');
+  var c2=ys.map(function(y){
+    var w1=m2>0?Math.max(2,Math.abs(y.net)/m2*100):0, w2=m2>0?Math.max(2,Math.abs(y.val)/m2*100):0;
+    return '<div class="ibar two"><span class="by">'+esc(y.y)+'</span><div class="bt"><i class="'+(y.net>0?'ibi':'ibn')+'" style="width:'+w1.toFixed(1)+'%"></i></div><b class="bv">'+(y.net<0?'−':'')+'₹'+n0(y.net)+'</b></div>'+
+      '<div class="ibar two" style="margin-bottom:10px"><span></span><div class="bt"><i class="ibg" style="width:'+w2.toFixed(1)+'%"></i></div><b class="bv">'+inr(y.val)+'</b></div>'; }).join('');
+  return '<h2>Profit each year</h2><div class="card" style="padding:10px 16px">'+c1+'</div>'+
+    '<h2>Money still in vs value now <small>each year</small></h2><div class="card" style="padding:10px 16px">'+
+    '<div class="ileg"><span><b class="ibi"></b>Net money still in</span><span><b class="ibg"></b>Value of shares now</span></div>'+
+    '<div style="font-size:11.5px;color:var(--mute);margin-bottom:6px">Grey means more was taken out by selling than was put in.</div>'+c2+'</div>';
+}
+function ipoStockRow(s,showYear){
+  var pcs=s.c>0.5?' ('+rp(s.u/s.c)+')':'';
+  return '<div class="isr"><div class="l"><div class="t">'+esc(s.n)+(s.f?'<span class="inp">No live price</span>':'')+'</div>'+
+    '<div class="s">'+(s.h>0?un(s.h)+' × '+px(s.g)+' · now '+(s.p>0?px(s.p):'no price')+(s.a?' · '+esc(s.a):''):'Sold out · bought at '+px(s.g))+'</div>'+
+    '<div class="s">Booked <span class="'+cls(s.r)+'">'+sgn(s.r)+'</span> · Unrealised <span class="'+cls(s.u)+'">'+sgn(s.u)+'</span></div></div>'+
+    '<div class="r"><div class="t">'+(s.h>0?inr(s.v):'—')+'</div><div class="s '+cls(s.t)+'">'+sgn(s.t)+'</div></div></div>';
+}
+function ipoYearCard(y){
+  var open=ipoYear!==''||ipoOpen[y.y];
+  var ml=function(k,v){return '<div class="ml"><div class="k">'+k+'</div><div class="v" style="font-size:16px">'+v+'</div></div>'};
+  return '<details class="iy"'+(open?' open':'')+' ontoggle="ipoOpen[\''+y.y+'\']=this.open"><summary><div><div class="yt">'+esc(y.y)+'</div>'+
+    '<div class="ys">'+plural(y.n,'IPO')+' · '+plural(y.a,'allotment')+'</div></div>'+
+    '<div class="yp '+cls(y.tot)+'">'+sgn(y.tot)+'<small>'+(y.ret!=null?rp(y.ret)+' · ':'')+xr(y.x)+' a year</small></div></summary>'+
+    '<div class="yb">'+ml('Capital deployed',inr(y.cap))+ml('Proceeds from sales',inr(y.wd))+
+    ml('Capital still in',(y.net<0?'−':'')+'₹'+n0(y.net))+ml('Value of shares still held',inr(y.val))+
+    ml('Profit booked','<span class="'+cls(y.real)+'">'+sgn(y.real)+'</span>')+ml('Unrealised profit','<span class="'+cls(y.unr)+'">'+sgn(y.unr)+'</span>')+
+    ml('Total profit','<span class="'+cls(y.tot)+'">'+sgn(y.tot)+'</span>')+ml('Annual return (XIRR)',xr(y.x))+
+    '<div style="margin-top:6px;font-weight:800;font-size:13px;color:var(--mute)">Stock by stock</div>'+y.st.map(function(s){return ipoStockRow(s)}).join('')+'</div></details>';
+}
+function ipoHoldings(ys){
+  var L=[]; ys.forEach(function(y){ y.st.forEach(function(s){ if(s.h>0) L.push(s) }) });
+  var pc2=function(s){return s.c>0?s.u/s.c:0};
+  L.sort(function(a,b){
+    if(ipoSort==='profit') return b.u-a.u; if(ipoSort==='loss') return a.u-b.u;
+    if(ipoSort==='pct') return pc2(b)-pc2(a); if(ipoSort==='name') return a.n<b.n?-1:1; return b.v-a.v; });
+  var tv=0,tu=0,tc=0; L.forEach(function(s){tv+=s.v;tu+=s.u;tc+=s.c});
+  var sel='<select class="isel" onchange="ipoSetS(this.value)">'+IPOSORT.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===ipoSort?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>';
+  return '<h2>IPOs still held <small>'+plural(L.length,'stock')+'</small></h2>'+
+    '<div class="tools">'+sel+'</div>'+
+    (L.length?'<div class="card" style="padding:4px 16px"><div class="isr" style="border-top:0"><div class="l"><div class="t">All of these</div><div class="s">Cost '+inr(tc)+'</div></div><div class="r"><div class="t">'+inr(tv)+'</div><div class="s '+cls(tu)+'">'+sgn(tu)+(tc>0.5?' ('+rp(tu/tc)+')':'')+'</div></div></div>'+
+      L.map(function(s){return ipoStockRow(s)}).join('')+'</div>':'<div class="note">Nothing from this selection is still held.</div>');
+}
+function ipoDiag(){
+  var d=IPO.diag||{}, bad=[];
+  if(d.noPurpose) bad.push(plural(d.noPurpose,'IPO row')+' with no Purpose (still counted, because the stock has an IPO Allotment row)');
+  if(d.text) bad.push(plural(d.text,'amount')+' stored as text, so the sheet totals skip them');
+  if(d.noPrice&&d.noPrice.length) bad.push(d.noPrice.length+' without a live price, counted at cost: '+d.noPrice.map(esc).join(', '));
+  if(d.noCode) bad.push(plural(d.noCode,'row')+' with no ticker code');
+  if(d.ledgerRows>4500) bad.push('the Ledger has '+d.ledgerRows+' rows, close to the 5000 the IPO sheet reads');
+  return '<div class="idiag'+(bad.length?' warn':'')+'">'+(bad.length?'To check: '+bad.join('; ')+'.':'Checks: every IPO row has a Purpose, all amounts are numbers, and every held IPO has a live price.')+
+    ' Read '+d.ledgerRows+' ledger rows in '+((d.ms||0)/1000).toFixed(1)+' s.</div>';
+}
+function ipoScreen(){
+  var main=document.getElementById('main');
+  document.getElementById('band').innerHTML=''; document.getElementById('fab').innerHTML='';
+  if(!IPO){ try{ var c=localStorage.getItem('ipo_'+KEY); if(c) IPO=JSON.parse(c); }catch(e){} }
+  if(ipoStale&&!ipoBusy){ ipoStale=false; ipoLoad(); }
+  if(!IPO){ main.innerHTML=ipoErr?'<div class="card" style="margin-top:22px;padding:16px;font-weight:700">'+esc(ipoErr)+'</div>':'<div class="center">Loading IPO figures</div>'; return; }
+  if(ipoAcct!=='ALL'&&IPO.accounts.indexOf(ipoAcct)<0) ipoAcct='ALL';
+  var v=ipoView(), ys=ipoYears(v), s=ipoSum(v);
+  var m='<div class="idiag" style="margin-top:12px">IPO figures, master only. Updated '+esc(IPO.asOf||'')+(IPO.priceNote?'. '+esc(IPO.priceNote):'')+(ipoBusy?'. Refreshing...':'')+'</div>'+
+    (ipoErr?'<div class="note">'+esc(ipoErr)+'</div>':'')+ipoChips()+ipoCards(s)+ipoBars(v)+
+    '<h2>Year by year <small>tap a year</small></h2>'+(ys.length?ys.map(ipoYearCard).join(''):'<div class="note">No IPOs in this selection.</div>')+
+    ipoHoldings(ys)+ipoDiag();
+  main.innerHTML=m;
+}
+
+try{ var _c=KEY&&localStorage.getItem('pfd_'+KEY); if(_c){ D=JSON.parse(_c); if(D&&!D.error&&D.stocks) done(); else D=null; } }catch(e){ D=null; }
 load();
 </script>
 </body>
