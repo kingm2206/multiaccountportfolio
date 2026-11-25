@@ -404,9 +404,9 @@ function dupDecide(id,choice){
 }
 function brokerSync(){
   if(bpBusy) return; bpBusy=true; bpMsg='Syncing. This can take about a minute.'; bpOk=true; brokerScreen();
-  if(isDemo()){ bpBusy=false; bpMsg='VIP: 2 added, 0 already in the Ledger.'; brokerScreen(); return; }
+  if(isDemo()){ bpBusy=false; bpMsg=''; bpRes=[{account:'VIP',found:3,added:2,already:1,flagged:0,bse:0,bseList:[]}]; brokerScreen(); return; }
   bcall('brokerSyncNow',[],{action:'bsync'},function(r){ bpBusy=false;
-    if(r.error){ bpMsg='Sync failed: '+r.error; bpOk=false } else { bpMsg=r.report.join('\n')+(r.diffs?'\n\n'+r.diffs:''); bpOk=true; BP=r.panel; if(r.panel.dups) dupLoad(); }
+    if(r.error){ bpMsg='Sync failed: '+r.error; bpOk=false; bpRes=null } else { bpRes=r.rows||[]; bpMsg=(bpRes.length?'':'No account is connected today. Log in first, then sync.')+(r.diffs?(bpRes.length?'':'\n\n')+r.diffs:''); bpOk=true; BP=r.panel; if(r.panel.dups) dupLoad(); }
     brokerScreen(); });
 }
 function angelSave(){
@@ -426,6 +426,22 @@ function angelGo(){
   fetch(ENDPOINT,{method:'POST',body:JSON.stringify({action:'aconnect',k:KEY,pin:pin,totp:totp}),redirect:'follow'})
     .then(function(r){ return r.text() }).then(function(t){ after(JSON.parse(t)) })
     .catch(function(){ after({error:'Could not reach the sheet. Check your connection.'}) });
+}
+var bpRes=null;
+function syncRes(){
+  if(!bpRes||!bpRes.length) return '';
+  var tot=bpRes.reduce(function(n,r){return n+(r.added||0)},0), fnd=bpRes.reduce(function(n,r){return n+(r.found||0)},0);
+  var h='<h2>Last sync <small>'+fnd+' trade'+(fnd===1?'':'s')+' found, '+tot+' added</small></h2><div class="list">';
+  bpRes.forEach(function(r){
+    var cl=''; if(BP) BP.accounts.forEach(function(a){ if(a.name===r.account) cl=a.client||'' });
+    var s;
+    if(r.err) s='Could not sync: '+r.err;
+    else if(!r.found) s='No trades today';
+    else s=r.found+' trade'+(r.found===1?'':'s')+' found · <b>'+r.added+' added to Ledger</b>'+(r.already?' · '+r.already+' already there':'')+(r.flagged?' · '+r.flagged+' to check below':'');
+    h+='<div class="item"><div class="nm"><div class="t">'+esc(r.account)+(cl?' · '+esc(cl):'')+'</div><div class="s" style="white-space:normal">'+(r.err?esc(s):s)+'</div>'+
+      (r.bse?'<div class="s" style="white-space:normal;color:#C0392B;font-weight:700">'+r.bse+' trade'+(r.bse===1?'':'s')+' on BSE for a stock not in your Ledger yet: '+esc((r.bseList||[]).join(', '))+'. Add by hand.</div>':'')+'</div></div>';
+  });
+  return h+'</div>';
 }
 function brokerScreen(){
   document.getElementById('band').innerHTML='';
@@ -464,6 +480,7 @@ function brokerScreen(){
     }
     h+='</div>';
   }
+  h+=syncRes();
   h+='<div class="btnrow"><button class="btn primary" onclick="brokerSync()"'+(bpBusy?' disabled':'')+'>'+(bpBusy?'Working...':'Sync today\'s trades and holdings')+'</button></div>';
   if(bpDups.length){
     h+='<h2>Possible duplicates <small>'+bpDups.length+' waiting</small></h2><div class="list">'+bpDups.map(function(d){
